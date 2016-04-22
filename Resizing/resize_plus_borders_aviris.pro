@@ -108,7 +108,7 @@ PRO resize_plus_borders_aviris
           startSample = 0
           offsetSample = abs(startSample)
         endif
-        endSample = (numSamples-1) + upperCoordX  
+        endSample = (numSamples-1) + upperCoordX
         if endSample GT nsRaster then begin
           endSample = (nsRaster-1)
         endif
@@ -120,7 +120,7 @@ PRO resize_plus_borders_aviris
           startLine = 0
           offsetLine = abs(upperCoordY)
         endif
-        endLine = (numLines-1) + upperCoordY 
+        endLine = (numLines-1) + upperCoordY
         if endLine GT nlRaster then begin
           endLine = (nlRaster-1)
         endif
@@ -131,7 +131,7 @@ PRO resize_plus_borders_aviris
         ;  DIMS[2]: The ending sample number
         ;  DIMS[3]: The starting line number. The first y pixel is 0.
         ;  DIMS[4]: The ending line number
-        
+
         ;;RESIZING
         if STRCMP(base_file_name,img) EQ 1 then begin ;If this is the basefile Resizing doesn't need to be done
           fidOutRaster = fidRaster
@@ -147,43 +147,56 @@ PRO resize_plus_borders_aviris
             R_FID = fidOutRaster, $;file ID of output or new image
             ;/IN_MEMORY, $ ; output should be stored in memory.
             RFACT = [1, 1] ;specify a two-element array holding the rebin factors for x and y ( a value of 1 does not change size of the data)
-        endelse       
+        endelse
 
         ;Check to make sure Resizing worked
         if fidOutRaster GT -1 then begin
           ;;Commenting out to see if code works before this;;;;;;;;;;;
           ;;Create new image file (this size will always stay the same and is based on base file size)
-          outImage = MAKE_ARRAY([(numSamples+20), (numLines+20), nbBase], TYPE = data_type, VALUE = 0) ;Create empty array for output image
+          ;outImage = MAKE_ARRAY([(numSamples+20), (numLines+20), nbBase], TYPE = data_type, VALUE = 0) ;Create empty array for output image
           ;If getting error: "Too many array elements" make sure you are running on IDL 64 bit
-          
+
+          print,(numSamples + 20)
           ;Get Information from new image
-          ENVI_file_query, fidOutRaster,DIMS = dimOutRaster
-          samples = dimOutRaster[2]
-          lines = dimOutRaster[4]
-          startImageSample = 9 + offsetSample
-          endImageSample = samples + startImageSample;
-          startImageLine = 9 + offsetLine
-          endImageLine = lines + startImageLine
-          
+          ENVI_file_query, fidOutRaster,DIMS = dimOutRaster, NL = nlOutRaster, NS = nsOutRaster, NB = nbOutRaster
+          ;          samples = dimOutRaster[2]
+          ;          lines = dimOutRaster[4]
+          ;          startImageSample = 9 + offsetSample
+          ;          endImageSample = samples + startImageSample;
+          ;          startImageLine = 9 + offsetLine
+          ;          endImageLine = lines + startImageLine
+          offsetEnd = (numSamples) - nsOutRaster
+          zerosFront = MAKE_ARRAY(10 + offsetSample,nbRaster, VALUE = 0)
+          zerosEnd = MAKE_ARRAY(10 + offsetEnd,nbRaster, VALUE = 0)
+
           ;Assign Data to new image
-          for i = 0, nbBase-1 do begin          
-            
+          for i = offsetLine, nlOutRaster-1 do begin    ;for each line in image
+
             ;Get Data from new image
-            newImageData = ENVI_GET_DATA(FID = fidOutRaster,DIMS = dimOutRaster,POS = i)
+            newImageData = ENVI_GET_SLICE(/BIL,FID = fidOutRaster,LINE = i,POS = INDGEN(nbOutRaster), XE = (nsOutRaster-1), XS = 0)
+            
+;              LINE = i ,$ ; Use this keyword to specify the line number to extract the slice from. LINE is a zero-based number.
+;              POS = INDGEN(nbRaster), $ ;Use this keyword to specify an array of band positions
+;              XE = 0 ,$;Use this keyword to specify the x ending value. XE is a zero-based number.
+;              XS = (nsRaster-1) ,$;Use this keyword to specify the x starting value. XS is a zero-based number.
+;              /BIL);dimensions of a BIL slice are always [num_samples, num_bands]
 
             ;Assign Data to new array
-            outImage[startImageSample:endImageSample,startImageLine:endImageLine,i] = newImageData
+            outLine = [zerosFront, newImageData, zerosEnd]
             
+            outImage[startImageSample:endImageSample,startImageLine:endImageLine,i] = newImageData
+
+            ;Write Data to File
+            writeu, U, outLine
           endfor
-          
-          ;Write Data to File
-          ;writeu, U, outImage
-          ENVI_WRITE_ENVI_FILE, outImage, $ ; Data to write to file
-            OUT_NAME = fileOutput, $
-            NB = nbBase, $; Number of Bands
-            NL = (numLines+20), $ ;Number of lines 
-            NS = (numSamples+20), $ ;Number of Samples
-            OFFSET = 0 ; Use this keyword to specify the offset (in bytes) to the start of the data in the file.        
+
+
+          ;          ENVI_WRITE_ENVI_FILE, outImage, $ ; Data to write to file
+          ;            OUT_NAME = fileOutput, $
+          ;            NB = nbBase, $; Number of Bands
+          ;            NL = (numLines+20), $ ;Number of lines
+          ;            NS = (numSamples+20), $ ;Number of Samples
+          ;            OFFSET = 0 ; Use this keyword to specify the offset (in bytes) to the start of the data in the file.
 
           ;set up and write the envi header for output image
           ENVI_SETUP_HEAD, $
@@ -192,21 +205,21 @@ PRO resize_plus_borders_aviris
             NS = numSamples,$ ;Number of samples
             NL = numLines, $ ;Number of lines
             data_type = data_type,$ ; Data type of file
-            interleave =  interleave, $ ;specify the interleave output: 0: BSQ,1: BIL,2: BIP
+            interleave =  1, $ ;specify the interleave output: 0: BSQ,1: BIL,2: BIP
             NB = nbBase,$ ;Number of Bands
             offset = offset,$ ;Use this keyword to specify the offset (in bytes) to the start of the data in the file.
             wl = wl,$ ;Wavelength list
             bbl = bbl, $ ;Bad Band List
             map_info = map_info,$ ;Map Info
             /write
-          
-          FREE_LUN, U ;the file can be closed and the file unit can be freed 
+
+          FREE_LUN, U ;the file can be closed and the file unit can be freed
           ;close,U ; Close file
           print,'Completed processing for ' + img
         endif else begin
           print,'Error in processing for ' + img
         endelse
-          
+
       endif ;if statement to see if it is a header file
 
     endforeach ;End for each through images within a flightline
