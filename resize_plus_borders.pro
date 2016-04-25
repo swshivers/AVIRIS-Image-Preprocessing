@@ -181,9 +181,19 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
         NL = base_lines + 20, $ ;Number of lines
         NS = base_samples + 20, $ ;Number of Samples
         INTERLEAVE = 1 , $ ;Set this keyword to one of the following integer values to specify the interleave output: 0: BSQ 1: BIL 2: BIP
+		R_FID = fidNew, $ ;Set keyword for new file's FID
         OFFSET = 0 ; Use this keyword to specify the offset (in bytes) to the start of the data in the file.
       ;;; DONE WRITING DATA TO ENVI FILE ;;;
       
+	  ;;; CONVERT TO BSQ ;;;
+	  ENVI_FILE_QUERY,fidNew, DIMS = new_dims
+	  ENVI_DOIT, 'CONVERT_INPLACE_DOIT', $
+		DIMS = new_dims, $ ;five-element array of long integers that defines the spatial subset
+		FID = fidNew, $ ;Set for new file's fid
+		O_INTERLEAVE = 0, $ ;keyword that specifies the interleave output: 0: BSQ, 1: BIL, 2: BIP
+		POS =  INDGEN(raster_bands - 1) ;specify an array of band positions  
+	  ;;; DONE CONVERTING TO BSQ ;;;
+	  
       ;;; CLOSING ;;;
       print, 'Completed Processing for : ' + single_image 
       envi_file_mng, ID = fidRaster, /remove ;Close current Raster image
