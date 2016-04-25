@@ -169,10 +169,12 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
         countLine = countLine + 1 ;Advance counter used in array assignment       
         
       ENDFOR
+      print,'Done Getting Data'
       ;;; DONE GETTING DATA & ASSIGNING TO RESIZED IMAGE ;;; 
       
       ;;; WRITE DATA TO ENVI FILE ;;;
       fileOutput = raster_file_name + '_ResizePlusBorder' ;Set file name for new image
+      fileOutputBSQ = fileOutput + 'BSQ' ;Set file name for new BSQ image
       ;GET_LUN, U ;The GET_LUN procedure allocates a file unit from a pool of free units
       ;openw,U,fileOutput ;Opens the write function
       ENVI_WRITE_ENVI_FILE, outImage, $ ; Data to write to file
@@ -181,22 +183,27 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
         NL = base_lines + 20, $ ;Number of lines
         NS = base_samples + 20, $ ;Number of Samples
         INTERLEAVE = 1 , $ ;Set this keyword to one of the following integer values to specify the interleave output: 0: BSQ 1: BIL 2: BIP
-		R_FID = fidNew, $ ;Set keyword for new file's FID
+        R_FID = fidNew, $ ;Set keyword for new file's FID
         OFFSET = 0 ; Use this keyword to specify the offset (in bytes) to the start of the data in the file.
+      print, 'Done Writing'
       ;;; DONE WRITING DATA TO ENVI FILE ;;;
       
-	  ;;; CONVERT TO BSQ ;;;
-	  ENVI_FILE_QUERY,fidNew, DIMS = new_dims
-	  ENVI_DOIT, 'CONVERT_INPLACE_DOIT', $
-		DIMS = new_dims, $ ;five-element array of long integers that defines the spatial subset
-		FID = fidNew, $ ;Set for new file's fid
-		O_INTERLEAVE = 0, $ ;keyword that specifies the interleave output: 0: BSQ, 1: BIL, 2: BIP
-		POS =  INDGEN(raster_bands - 1) ;specify an array of band positions  
-	  ;;; DONE CONVERTING TO BSQ ;;;
-	  
+    ;;; CONVERT TO BSQ ;;;
+    ENVI_FILE_QUERY,fidNew, DIMS = new_dims
+    ENVI_DOIT, 'CONVERT_DOIT', $
+      DIMS = new_dims, $ ;five-element array of long integers that defines the spatial subset
+      FID = fidNew, $ ;Set for new file's fid
+      OUT_NAME = fileOutputBSQ, $ ; Set new files output name
+      R_FID = fidNewBSQ, $ ;Set BSQ file fid
+      O_INTERLEAVE = 0, $ ;keyword that specifies the interleave output: 0: BSQ, 1: BIL, 2: BIP
+      POS =  INDGEN(raster_bands - 1) ;specify an array of band positions  
+    ;;; DONE CONVERTING TO BSQ ;;;
+    
       ;;; CLOSING ;;;
       print, 'Completed Processing for : ' + single_image 
       envi_file_mng, ID = fidRaster, /remove ;Close current Raster image
+      envi_file_mng, ID = fidNew, /remove ;Close current Raster image
+      envi_file_mng, ID = fidNewBSQ, /remove ;Close current Raster image
       ;;; DONE CLOSING ;;;
       
     ENDIF ;end of if statement checking if header file
