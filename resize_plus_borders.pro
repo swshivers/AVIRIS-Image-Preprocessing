@@ -113,7 +113,7 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
       endSample = (base_samples - 1) + upperCoordX ;Set the sample number to end with
       offsetSampleEnd = 0 ; set the default offset to zero
       if endSample GT raster_samples then begin ;If the sample to end with is found off the image
-        offsetSampleEnd =  base_samples - raster_samples
+        offsetSampleEnd =  endSample - raster_samples
         endSample = (raster_samples - 1) ; Set the last sample to the image
       endif
       
@@ -188,8 +188,8 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
         wl = raster_wl,$ ;Wavelength list
         bbl = raster_bbl, $ ;Bad Band List
         map_info = map_info_base, $ ;Map Info - set to the base image since raster has been resized.
-        x_start = 9, $ ;keyword to specify the x starting sample for the first pixel in the file. The default is 0. 
-        y_start = 9, $ ;keyword to specify the y starting sample for the first pixel in the file. The default is 0. 
+        xstart = 9, $ ;keyword to specify the x starting sample for the first pixel in the file. The default is 0. 
+        ystart = 9, $ ;keyword to specify the y starting sample for the first pixel in the file. The default is 0. 
         bnames = raster_band_names, $ ;Bands Names
         /write
       ;;; DONE CREATING ENVI HEADER FILE ;;;
@@ -199,7 +199,8 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
       envi_file_mng, ID = fidRaster, /remove ;Close current Raster image
       envi_file_mng, ID = fidTemp, /remove ;Close current Raster image
       envi_file_mng, ID = fidFinal, /remove ;Close current Raster image
-      FILE_DELETE, fileOutputTemp, /RECYCLE ;Delete the temporary BIL formatted image and put in the recycle bin (just in case you want to recover image)
+      FILE_DELETE, fileOutputTemp ;Delete the temporary BIL formatted image 
+	  FILE_DELETE, fileOutputTemp + '.hdr' ;Delete the temporary BIL formatted image 
       ;;; DONE CLOSING ;;;
       
     ENDIF ;end of if statement checking if header file
