@@ -11,16 +11,18 @@ PRO resize_plus_borders
 ; Susan Meerdink
 ; Created 4/25/2016
 
-COMPILE_OPT STRICTARR
-envi, /restore_base_save_files
-ENVI_BATCH_INIT
-
 ;;; INPUTS ;;;
 main_path = 'R:\users\susan.meerdink\Testing_Imagery_Folder\' ; Set directory that holds all flightlines
 base_image_id ='*f140416*' ;search term to identify base image (and base image only!) 
 all_image_id = 'FL*' ;search term which needs to apply to all images in the file path you want co-registered
 flightbox_name = 'SB' ;Name of flightbox to be processed (SB for Santa Barbara, SN for Sierra Nevada) 
 ;;; INPUTS DONE ;;
+
+;;; SETTING UP ENVI/IDL ENVIRONMENT ;;;
+COMPILE_OPT STRICTARR
+envi, /restore_base_save_files
+ENVI_BATCH_INIT ;Doesn't require having ENVI open - use with stand alone IDL 64 bit
+;;; DONE SETTING UP ENVI/IDL ENVIRONMENT ;;;
 
 ;;; SETTING UP FLIGHTLINE FOLDERS ;;;
 ;; TWO Options: 1) Have list of Flightline folders (processing multiple) 2) Only want to process ONE flightline
@@ -100,8 +102,6 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
         upperCoordN ;YMap is a variable that contains the y map coordinates to convert
       upperCoordX = round(upperCoordX) ;Round to the nearest whole pixel
       upperCoordY = round(upperCoordY) ;Round to the nearest whole pixel
-      ;print, upperCoordX
-      ;print, upperCoordY
       
       ;; Setting the number of samples to pull data out
       startSample = upperCoordX ; Set the sample number to start with
@@ -128,92 +128,82 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
       if endLine GT raster_lines then begin ;If this line is found off the image
         endLine = (raster_lines - 1) ;set it to the last sample found in the image
       endif
-      
-      print, 'Start Sample ' + string(startSample)
-      print, 'Offset Sample Start ' + string(offsetSampleStart)
-      print, 'Offset Sample End ' + string(offsetSampleEnd)
-      print, 'End Sample ' + string(endSample)
-      print, 'Start Line ' + string(startLine)
-      print, 'Offset Line ' + string(offsetLineStart)
-      print, 'End Line ' + string(endLine)
       ;;; DONE FINDING RESIZE COORDINATES ;;;
       
       ;;; GET DATA & ASSIGN TO RESIZED IMAGE ;;; 
       outImage = 0 ;This is for memory purposes
-      outImage = MAKE_ARRAY([(base_samples+20), base_bands, (base_lines+20)], TYPE = data_type, VALUE = 0) ;Create empty array for output image
-      print, size(outImage,/DIMENSIONS)
-      zerosFront = MAKE_ARRAY(10 + offsetSampleStart,raster_bands, VALUE = 0)
-      zerosEnd = MAKE_ARRAY(10 + offsetSampleEnd, raster_bands, VALUE = 0)
-      ;zerosFront = MAKE_ARRAY(10 + offsetSampleStart,1, VALUE = 0)
-      ;zerosEnd = MAKE_ARRAY(10 + offsetSampleEnd, 1, VALUE = 0)
-      ;print, (size(zerosFront,/DIMENSIONS) + (endSample - startSample) + size(zerosEnd,/DIMENSIONS))
+      outImage = MAKE_ARRAY([(base_samples+20), base_bands, (base_lines+20)], TYPE = raster_data_type, VALUE = 0) ;Create empty array for output image
+      zerosFront = MAKE_ARRAY(10 + offsetSampleStart,raster_bands, VALUE = 0) ;Place holders for beginning of line
+      zerosEnd = MAKE_ARRAY(10 + offsetSampleEnd, raster_bands, VALUE = 0) ;Place holders for end of line
       countLine = 9 ;Counter for array assignment in loop (skips first 10 lines for header)
+      print,'Assigning Data: ' + single_image
       
       FOR i = startLine, endLine DO BEGIN ;Loop through lines of image
-        ;Get Data from new image (returns in BIL format)
-        newImageData = ENVI_GET_SLICE(/BIL, FID = fidRaster, LINE = i, POS = INDGEN(raster_bands), XS = startSample, XE = endSample)
+        newImageData = ENVI_GET_SLICE(/BIL, FID = fidRaster, LINE = i, POS = INDGEN(raster_bands), XS = startSample, XE = endSample) ;Get Data from new image (returns in BIL format)
         ;              LINE = keyword to specify the line number to extract the slice from. LINE is a zero-based number.
         ;              POS = keyword to specify an array of band positions
         ;              XE = keyword to specify the x ending value. XE is a zero-based number.
         ;              XS = keyword to specify the x starting value. XS is a zero-based number.
-        ;              /BIL = keyword that make data returned in BIL format - dimensions of a BIL slice are always [num_samples, num_bands]
-        
-        ;Assign Data to new array
-        outLine = [zerosFront, newImageData, zerosEnd]
-        if i EQ startLine THEN BEGIN
-          print, size(newImageData,/DIMENSIONS)
-          print, size(outLine,/DIMENSIONS)
-        endif
-        
+        ;              /BIL = keyword that make data returned in BIL format - dimensions of a BIL slice are always [num_samples, num_bands]               
+        outLine = [zerosFront, newImageData, zerosEnd];Assign Data to new array
         outImage[0,0,countLine] = outLine ;Assign Array
         countLine = countLine + 1 ;Advance counter used in array assignment       
         
-      ENDFOR
-      print,'Done Getting Data'
+      ENDFOR 
       ;;; DONE GETTING DATA & ASSIGNING TO RESIZED IMAGE ;;; 
-      
+
       ;;; WRITE DATA TO ENVI FILE ;;;
+      print, 'Writing: ' + single_image 
       fileOutput = raster_file_name + '_ResizePlusBorder' ;Set file name for new image
-      fileOutputBSQ = fileOutput + 'BSQ' ;Set file name for new BSQ image
-      ;GET_LUN, U ;The GET_LUN procedure allocates a file unit from a pool of free units
-      ;openw,U,fileOutput ;Opens the write function
+      fileOutputTemp = raster_file_name + 'Temp' ;Set file name for new BSQ image
       ENVI_WRITE_ENVI_FILE, outImage, $ ; Data to write to file
-        OUT_NAME = fileOutput, $ ;Output file name
+        OUT_NAME = fileOutputTemp, $ ;Output file name
         NB = base_bands, $; Number of Bands
         NL = base_lines + 20, $ ;Number of lines
         NS = base_samples + 20, $ ;Number of Samples
         INTERLEAVE = 1 , $ ;Set this keyword to one of the following integer values to specify the interleave output: 0: BSQ 1: BIL 2: BIP
-        R_FID = fidNew, $ ;Set keyword for new file's FID
-        OFFSET = 0 ; Use this keyword to specify the offset (in bytes) to the start of the data in the file.
-      print, 'Done Writing'
+        R_FID = fidTemp, $ ;Set keyword for new file's FID
+        OFFSET = 0 ; Use this keyword to specify the offset (in bytes) to the start of the data in the file.      
       ;;; DONE WRITING DATA TO ENVI FILE ;;;
       
-    ;;; CONVERT TO BSQ ;;;
-    ENVI_FILE_QUERY,fidNew, DIMS = new_dims
-    ENVI_DOIT, 'CONVERT_DOIT', $
-      DIMS = new_dims, $ ;five-element array of long integers that defines the spatial subset
-      FID = fidNew, $ ;Set for new file's fid
-      OUT_NAME = fileOutputBSQ, $ ; Set new files output name
-      R_FID = fidNewBSQ, $ ;Set BSQ file fid
-      O_INTERLEAVE = 0, $ ;keyword that specifies the interleave output: 0: BSQ, 1: BIL, 2: BIP
-      POS =  INDGEN(raster_bands - 1) ;specify an array of band positions  
-    ;;; DONE CONVERTING TO BSQ ;;;
+      ;;; CONVERT TO BSQ ;;;
+      ENVI_FILE_QUERY,fidTemp, DIMS = new_dims, NS = new_samples, NL = new_lines, NB = new_bands
+      ENVI_DOIT, 'CONVERT_DOIT', $
+        DIMS = new_dims, $ ;five-element array of long integers that defines the spatial subset
+        FID = fidTemp, $ ;Set for new file's fid
+        OUT_NAME = fileOutput, $ ; Set new files output name
+        R_FID = fidFinal, $ ;Set BSQ file fid
+        O_INTERLEAVE = 0, $ ;keyword that specifies the interleave output: 0: BSQ, 1: BIL, 2: BIP
+        POS =  INDGEN(raster_bands) ;specify an array of band positions  
+      ;;; DONE CONVERTING TO BSQ ;;;
+      
+      ;;; CREATING ENVI HEADER FILE ;;;
+      ENVI_SETUP_HEAD, $
+        fname = fileOutput + '.hdr', $ ;Header file name
+        NS = new_samples,$ ;Number of samples
+        NL = new_lines, $ ;Number of lines
+        data_type = raster_data_type,$ ; Data type of file
+        interleave =  0, $ ;specify the interleave output: 0: BSQ,1: BIL,2: BIP
+        NB = new_bands,$ ;Number of Bands
+        wl = raster_wl,$ ;Wavelength list
+        bbl = raster_bbl, $ ;Bad Band List
+        map_info = map_info_base, $ ;Map Info - set to the base image since raster has been resized.
+        x_start = 9, $ ;keyword to specify the x starting sample for the first pixel in the file. The default is 0. 
+        y_start = 9, $ ;keyword to specify the y starting sample for the first pixel in the file. The default is 0. 
+        bnames = raster_band_names, $ ;Bands Names
+        /write
+      ;;; DONE CREATING ENVI HEADER FILE ;;;
     
       ;;; CLOSING ;;;
       print, 'Completed Processing for : ' + single_image 
       envi_file_mng, ID = fidRaster, /remove ;Close current Raster image
-      envi_file_mng, ID = fidNew, /remove ;Close current Raster image
-      envi_file_mng, ID = fidNewBSQ, /remove ;Close current Raster image
+      envi_file_mng, ID = fidTemp, /remove ;Close current Raster image
+      envi_file_mng, ID = fidFinal, /remove ;Close current Raster image
+      FILE_DELETE, fileOutputTemp, /RECYCLE ;Delete the temporary BIL formatted image and put in the recycle bin (just in case you want to recover image)
       ;;; DONE CLOSING ;;;
       
     ENDIF ;end of if statement checking if header file
   ENDFOREACH ;end of loop through images in single flightline
   print, 'Finished with ' + single_flightline 
-
-
 ENDFOREACH ;;; DONE LOOP THROUGH FLIGHTLINES ;;;
-
-
-
-
 END ; End of File
