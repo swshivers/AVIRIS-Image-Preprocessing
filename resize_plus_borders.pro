@@ -42,7 +42,7 @@ ENVI_BATCH_INIT ;Doesn't require having ENVI open - use with stand alone IDL 64 
 ;endfor
 
 ;; OPTION 2 - Only one flightline folder
-flightline_name = '02' ;Set the single flightline you want to process (make sure to add 0 in front of flightlines under 10)
+flightline_name = '03' ;Set the single flightline you want to process (make sure to add 0 in front of flightlines under 10)
 fl_list = make_array(1,1,/string);Make array that only holds one flightline name
 fl_list[0,0] = STRCOMPRESS(flightbox_name + '_FL' + flightline_name,/REMOVE_all) ;Add flightline name to list
 ;;; DONE SETTING UP FLIGHTLINE FOLDERS ;;;
@@ -178,6 +178,8 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
       ;;; DONE CONVERTING TO BSQ ;;;
       
       ;;; CREATING ENVI HEADER FILE ;;;
+      map_info_base.mc[0] = 10 ;Update x pixel start
+      map_info_base.mc[1] = 10 ;Update y pixel start
       ENVI_SETUP_HEAD, $
         fname = fileOutput + '.hdr', $ ;Header file name
         NS = new_samples,$ ;Number of samples
@@ -188,8 +190,6 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
         wl = raster_wl,$ ;Wavelength list
         bbl = raster_bbl, $ ;Bad Band List
         map_info = map_info_base, $ ;Map Info - set to the base image since raster has been resized.
-        xstart = 9, $ ;keyword to specify the x starting sample for the first pixel in the file. The default is 0. 
-        ystart = 9, $ ;keyword to specify the y starting sample for the first pixel in the file. The default is 0. 
         bnames = raster_band_names, $ ;Bands Names
         /write
       ;;; DONE CREATING ENVI HEADER FILE ;;;
@@ -200,7 +200,7 @@ FOREACH single_flightline, fl_list DO BEGIN ;;; LOOP THROUGH FLIGHTLINES ;;;
       envi_file_mng, ID = fidTemp, /remove ;Close current Raster image
       envi_file_mng, ID = fidFinal, /remove ;Close current Raster image
       FILE_DELETE, fileOutputTemp ;Delete the temporary BIL formatted image 
-	  FILE_DELETE, fileOutputTemp + '.hdr' ;Delete the temporary BIL formatted image 
+      FILE_DELETE, fileOutputTemp + '.hdr' ;Delete the temporary BIL formatted image 
       ;;; DONE CLOSING ;;;
       
     ENDIF ;end of if statement checking if header file
